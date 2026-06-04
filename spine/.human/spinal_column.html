@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Spinal Column — a dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,600&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0c0d0e;
+    --bg2:       #111315;
+    --panel:     #0e1011;
+    --ink:       #e6dfce;
+    --muted:     #8c8676;
+    --faint:     #5f5b50;
+    --bone:      #d8cfb8;
+    --bone-bright:#efe7d2;
+    --bone-stroke:#9c937c;
+    --accent:    #bb3a23;
+    --accent-bright:#d2492f;
+    --accent-stroke:#ecdcbf;
+    --cord:      rgba(187,58,35,.42);
+    --hair:      rgba(216,207,184,.10);
+    --line:      rgba(216,207,184,.16);
+    --serif:     'Spectral', Georgia, 'Times New Roman', serif;
+    --display:   'Fraunces', Georgia, serif;
+    --mono:      'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  /* atmosphere: vignette + film grain over the radiograph */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(120% 90% at 28% 18%, rgba(40,38,33,.35), transparent 60%),
+                radial-gradient(140% 120% at 80% 110%, rgba(120,36,22,.10), transparent 55%);
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0; z-index: 999; pointer-events: none;
+    opacity: .04; mix-blend-mode: screen;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap { position: relative; z-index: 1; display: flex; height: 100vh; }
+
+  /* ───────────────── left: the spine plate ───────────────── */
+  .spine-panel {
+    width: 450px; flex: 0 0 450px;
+    height: 100vh;
+    display: flex; flex-direction: column;
+    padding: 30px 18px 22px;
+    border-right: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--bg) 0%, #0a0b0c 100%);
+  }
+  .masthead { padding: 0 14px; }
+  .kicker {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .42em;
+    text-transform: uppercase; color: var(--accent-bright); margin: 0 0 7px;
+  }
+  .masthead h1 {
+    font-family: var(--display); font-weight: 600; font-size: 27px;
+    line-height: .98; letter-spacing: .005em; margin: 0; color: var(--ink);
+    font-optical-sizing: auto;
+  }
+  .masthead .sub {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    margin: 9px 0 0; letter-spacing: .02em;
+  }
+  .masthead .sub::before { content: "› "; color: var(--accent); }
+
+  .plate { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  svg.spine { width: 100%; height: 100%; max-height: 100%; overflow: visible; }
+
+  .region { cursor: pointer; }
+  .region { animation: rise .9s cubic-bezier(.2,.8,.2,1) both; transform-box: fill-box; }
+  @keyframes rise { from { opacity: 0; } to { opacity: 1; } }
+
+  /* deliberate selection focus: suppress the intrusive default browser ring,
+     and author a dimmer, distinct keyboard-focus cue in the radiograph palette.
+     Mouse clicks land in the .is-selected state (no ring); keyboard focus shows
+     this dim cord-toned halo so Tab users can tell "about to choose" from "chosen". */
+  .region:focus { outline: none; }
+  .region:focus-visible { outline: none; }
+  .region:focus-visible .v-body,
+  .region:focus-visible .v-proc,
+  .region:focus-visible .v-sacrum {
+    stroke: var(--accent-bright); stroke-width: 1.2;
+  }
+  .region:focus-visible .v-rib { stroke: var(--accent-bright); }
+  .region:focus-visible:not(.is-selected) {
+    filter: drop-shadow(0 0 3px var(--cord));
+  }
+  .region:focus-visible .v-num { fill: var(--accent-bright); }
+
+  .v-body, .v-proc, .v-sacrum {
+    fill: var(--bone); stroke: var(--bone-stroke); stroke-width: .8;
+    transition: fill .3s ease, stroke .3s ease;
+  }
+  .v-rib { fill: none; stroke: var(--bone-stroke); stroke-width: 1.3; opacity: .8; transition: stroke .3s ease; }
+  .v-seg { stroke: rgba(12,13,14,.45); stroke-width: .8; }
+  .cord-path { fill: none; stroke: var(--cord); stroke-width: 1.4; stroke-dasharray: 2 4; stroke-linecap: round; }
+
+  .region:hover .v-body, .region:hover .v-proc, .region:hover .v-sacrum { fill: var(--bone-bright); }
+  .region:hover .v-rib { stroke: var(--bone-bright); }
+
+  .region.is-selected { filter: drop-shadow(0 0 7px rgba(187,58,35,.55)); }
+  .region.is-selected .v-body, .region.is-selected .v-proc, .region.is-selected .v-sacrum {
+    fill: var(--accent); stroke: var(--accent-stroke); stroke-width: 1;
+  }
+  .region.is-selected .v-rib { stroke: var(--accent-bright); opacity: 1; }
+
+  .v-num { font-family: var(--mono); font-size: 17px; font-weight: 500; fill: var(--faint); transition: fill .3s; }
+  .v-name { font-family: var(--mono); font-size: 7.5px; letter-spacing: .16em; text-transform: uppercase; fill: var(--faint); transition: fill .3s; }
+  .region:hover .v-num, .region:hover .v-name { fill: var(--muted); }
+  .region.is-selected .v-num { fill: var(--accent-bright); }
+  .region.is-selected .v-name { fill: var(--ink); }
+  .badge-ring { fill: var(--bg); stroke: var(--accent); stroke-width: 1.1; }
+  .badge-num { font-family: var(--mono); font-size: 9px; font-weight: 500; fill: var(--accent-bright); }
+  .region.is-selected .badge-ring { fill: var(--accent); stroke: var(--accent-stroke); }
+  .region.is-selected .badge-num { fill: var(--bg); }
+
+  .legend {
+    padding: 14px 14px 2px; border-top: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--muted); letter-spacing: .02em;
+  }
+  .legend .row { display: flex; gap: 16px; }
+  .legend b { color: var(--ink); font-weight: 500; }
+  .legend .dot { color: var(--accent-bright); }
+
+  /* ───────────────── right: the detail ───────────────── */
+  /* Center the measure as a deliberately set column, biased spine-ward (left)
+     so it stays in conversation with the spine rather than adrift at the right.
+     padding-block keeps the vertical inset; padding-inline is fluid; the inner
+     column centers via margin-inline:auto inside an asymmetric content band. */
+  .detail-panel {
+    flex: 1; height: 100vh; overflow-y: auto;
+    padding-block: 56px 90px;
+    padding-inline: clamp(28px, 5vw, 84px);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .detail-panel::-webkit-scrollbar { width: 10px; }
+  .detail-panel::-webkit-scrollbar-thumb { background: #24262a; border-radius: 0; }
+  .detail-inner {
+    width: 100%;
+    max-width: clamp(560px, 46vw, 720px);
+    /* asymmetric centering: cap the right gutter so the column nudges toward
+       the spine on ultra-wide screens, staying tethered to the artifact. */
+    margin-inline: auto min(8vw, 160px);
+  }
+
+  .stage-head { display: flex; align-items: baseline; gap: 20px; }
+  .stage-num {
+    font-family: var(--mono); font-size: 13px; color: var(--accent-bright);
+    letter-spacing: .1em; padding-top: 8px;
+  }
+  .stage-head h2 {
+    font-family: var(--display); font-weight: 500; font-size: 42px; line-height: 1.02;
+    margin: 0; letter-spacing: -.01em; color: var(--ink); font-optical-sizing: auto;
+  }
+  .anat {
+    display: block; font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-top: 10px; letter-spacing: .04em;
+  }
+  .role {
+    font-size: 18px; line-height: 1.6; color: #cdc6b4; font-weight: 300;
+    margin: 26px 0 34px; max-width: 60ch;
+  }
+  .role .em { color: var(--ink); font-style: italic; }
+
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 0 0 26px; }
+
+  .flux { display: flex; flex-direction: column; gap: 18px; margin-bottom: 44px; }
+  .flux-row { display: grid; grid-template-columns: 132px 1fr; gap: 22px; align-items: start; }
+  .dir {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent-bright); padding-top: 3px;
+  }
+  .dir.down { color: var(--muted); }
+  .flux-row p { margin: 0; font-size: 14.5px; line-height: 1.62; color: #c5beac; }
+  .flux-row p .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--ink);
+    border-bottom: 1px solid var(--accent); padding-bottom: 1px;
+  }
+
+  .items-head {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 22px;
+  }
+  .items-head .label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted);
+  }
+  .items-head .count {
+    font-family: var(--mono); font-size: 10.5px; color: var(--accent-bright);
+    border: 1px solid var(--accent); border-radius: 0; padding: 2px 8px;
+  }
+  .items-head .bar { flex: 1; height: 1px; background: var(--line); }
+
+  .cards { display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    background: linear-gradient(180deg, rgba(255,255,255,.014), rgba(0,0,0,.10));
+    padding: 18px 20px 19px;
+    animation: cardin .55s cubic-bezier(.2,.8,.2,1) both;
+    animation-delay: calc(var(--i) * 70ms);
+  }
+  @keyframes cardin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 9px; }
+  .card h4 { font-family: var(--display); font-weight: 500; font-size: 18px; margin: 0; color: var(--ink); }
+  .chip {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); padding: 3px 7px; white-space: nowrap;
+  }
+  .chip.hot { color: var(--accent-bright); border-color: var(--accent); }
+  .card p { margin: 0; font-size: 14px; line-height: 1.6; color: #b8b1a0; }
+
+  .empty {
+    border: 1px dashed var(--line); padding: 30px 24px; text-align: center;
+    color: var(--faint); font-style: italic; font-size: 15px;
+  }
+  .empty .mono { display: block; font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; margin-top: 10px; color: var(--muted); }
+
+  .detail-inner.swap { animation: swap .4s ease both; }
+  @keyframes swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 880px) {
+    body { overflow: auto; }
+    .wrap { flex-direction: column; height: auto; }
+    .spine-panel { width: 100%; flex: none; height: 70vh; border-right: 0; border-bottom: 1px solid var(--line); }
+    .detail-panel { height: auto; padding: 40px 28px 70px; align-items: stretch; }
+    .detail-inner { max-width: none; margin-inline: auto; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="spine-panel">
+      <div class="masthead">
+        <p class="kicker">A dashboard for</p>
+        <h1>Spinal&nbsp;Development</h1>
+        <p class="sub">spinal_column.html</p>
+      </div>
+      <div class="plate"><svg class="spine" id="spine" viewBox="0 0 328 560" preserveAspectRatio="xMidYMid meet" aria-label="Interactive spine"></svg></div>
+      <div class="legend">
+        <div class="row"><span><span class="dot">↑</span> <b>afferent</b> — promotion</span><span><span class="dot">↓</span> <b>efferent</b> — send-back</span></div>
+        <div class="row"><span><span class="dot">●</span> <b>reflex</b> — local, automatic</span><span><span class="dot">○</span> <b>mediated</b> — crown-judged</span></div>
+      </div>
+    </aside>
+
+    <main class="detail-panel">
+      <div class="detail-inner" id="detail"></div>
+    </main>
+  </div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   LIVE DATA — the dashboard's single source of truth.
+
+   This block is updated as elements propagate through the spine. When an
+   artifact settles in a stage, add it to that stage's `items` array; when
+   the cord promotes or sends it back, move it. Counts, badges, and cards
+   all derive from here automatically.
+
+     item = { title: string, desc: string (2-3 sentences), status: string }
+
+   `status` should be one of the stage's own status vocabulary (shown under
+   each stage). Mark the "active" statuses as hot chips via HOT_STATUS below.
+   ════════════════════════════════════════════════════════════════════ */
+
+const STAGES = {
+  0: {
+    num: "00", name: "Coccygeal Differentiation", anat: "Coccyx · the vestigial seed, nearest the earth",
+    role: "Ideation, and the seedbed of future updates. The vestigial tail closest to the grounded past, where raw, <span class='em'>undifferentiated</span> ideas are captured before they commit to desire, structure, or plan.",
+    ascend: { mode: "●", text: "A seed rises to the <span class='tag'>Sacral</span> once it carries a genuine want — phrasable as <em>“we want X so that Y.”</em> Reflexive, unless the idea cuts against the project's telos, in which case the crown is consulted first." },
+    descend: { mode: "—", text: "Nothing descends to the base. A seed either ascends or is let go — set to <span class='tag'>dropped</span>." },
+    statuses: ["seed", "promoted", "dropped"],
+    items: []
+  },
+  1: {
+    num: "01", name: "Sacral Unconscious", anat: "Sacrum · the fused base that bears the weight",
+    role: "Desire-oriented specifications — what the project <span class='em'>wants</span>, and why, before it knows how. The broad fused base on which the entire column's weight is carried.",
+    ascend: { mode: "●", text: "A want is given bones in the <span class='tag'>Lumbar</span> once it states a clear want, a why, and an articulable satisfaction. Reflexive — unless its structure crosses other features or holds an unresolved tension, which the crown must judge." },
+    descend: { mode: "○", text: "Receives the crown's send-back when a built thing has <em>drifted</em> from the want it was meant to serve. The desire reopens to <span class='tag'>open</span>." },
+    statuses: ["open", "architected", "satisfied", "abandoned"],
+    items: []
+  },
+  2: {
+    num: "02", name: "Lumbar Architecture", anat: "Lumbar · the load-bearing bones",
+    role: "Technical write-ups for features and items — desire given <span class='em'>bones</span>. The load-bearing vertebrae, carrying the most structural weight in the column.",
+    ascend: { mode: "●", text: "A sound write-up folds into a <span class='tag'>Thoracic</span> wave once no load-bearing question remains. Placing a single item is reflexive; reshaping the whole plan's wave structure escalates to the crown." },
+    descend: { mode: "○", text: "Receives a send-back for a missing or broken bone. The write-up returns to <span class='tag'>draft</span> to be repaired or extended." },
+    statuses: ["draft", "sound", "building", "built"],
+    items: []
+  },
+  3: {
+    num: "03", name: "Thoracic Infolding", anat: "Thoracic · the ribbed cage and its breath",
+    role: "A plan for parallelized, wave-based implementation. The ribbed cage and its <span class='em'>breath</span>, where architected items are folded into waves that can be built at once.",
+    ascend: { mode: "○", text: "A completed, verified wave surfaces to the <span class='tag'>Cervical</span> crown for documentation and oversight." },
+    descend: { mode: "○", text: "Receives a send-back for a flawed or incoherent wave. The plan returns to <span class='tag'>planned</span>, and must breathe again." },
+    statuses: ["planned", "breathing", "complete"],
+    items: []
+  },
+  4: {
+    num: "04", name: "Cervical Awareness", anat: "Cervical · the crown, lifted toward the sky",
+    role: "Guidelines, procedures, documentation, and oversight. The crown that lifts the head toward the sky — the <span class='em'>only</span> level that sees the entire spine.",
+    ascend: { mode: "—", text: "The zenith. Nothing ascends beyond awareness." },
+    descend: { mode: "○", text: "The origin of every descent: a flawed wave to <span class='tag'>Thoracic</span>, a missing bone to <span class='tag'>Lumbar</span>, a drifted desire to <span class='tag'>Sacral</span>. Correction is never reflexive — it always begins here." },
+    statuses: ["guideline", "procedure", "documentation", "oversight"],
+    items: []
+  }
+};
+
+// statuses rendered as a "hot" (accent) chip
+const HOT_STATUS = new Set(["seed","open","draft","sound","planned","breathing","building","oversight"]);
+
+/* ─────────────────────  THE SPINE PLATE  ───────────────────── */
+
+const NS = "http://www.w3.org/2000/svg";
+function E(tag, attrs) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+// regions top → bottom : cervical (sky) down to coccyx (earth)
+// `count` vertebrae per run; per-vertebra body height/width grow downward to
+// match the reference's swelling lumbar bodies. `klass` tunes the vertebra
+// shape (process length/angle, body block). Sacrum & coccyx are special-cased.
+const REGIONS = [
+  { stage: 4, key: "cervical",  count: 6, klass: "cervical", bh: 11.5, bw: 21, gap: 2.6 },
+  { stage: 3, key: "thoracic",  count: 9, klass: "thoracic", bh: 13.5, bw: 26, gap: 2.8, ribs: true },
+  { stage: 2, key: "lumbar",    count: 5, klass: "lumbar",   bh: 18.5, bw: 38, gap: 3.4 },
+  { stage: 1, key: "sacral",    sacrum: true },
+  { stage: 0, key: "coccygeal", count: 4, klass: "coccyx",   bh: 9,    bw: 16, gap: 2.0, taper: true }
+];
+
+const CX = 196;
+const SACRUM_DX = -7;   // sacrum & coccyx nudged left, to sit inline with the column
+// Sagittal S-curve sampled along y: cervical lordosis (forward/right), thoracic
+// kyphosis (backward/left), lumbar lordosis (forward/right), sacral kyphosis.
+// Anterior (body) is to the RIGHT (+x); posterior (spinous process) to the LEFT.
+const ox = (y) => {
+  const t = (y - 40) / 470;                 // 0 at crown → ~1 at sacrum
+  return Math.sin(t * Math.PI * 2.05 + 0.55) * 17 - t * 6;
+};
+// local tangent of the centerline (for leaning each vertebra into the curve)
+const slope = (y) => (ox(y + 1.2) - ox(y - 1.2)) / 2.4;
+
+/* One vertebra as a single closed path: anterior body block on the right, a
+   pedicle waist, and a tapering spinous process angled posterior (left) and
+   DOWN — the stacked-comma signature of the reference. Flat fill only. */
+function vertebra(cx, cy, sl, bw, bh, klass) {
+  // process geometry per region
+  const cfg = {
+    cervical: { pl: 0.95, drop: 0.78, taper: 0.34, front: 0.10 },
+    thoracic: { pl: 1.35, drop: 1.05, taper: 0.30, front: 0.12 },
+    lumbar:   { pl: 1.02, drop: 0.62, taper: 0.46, front: 0.16 },
+    coccyx:   { pl: 0.55, drop: 0.40, taper: 0.50, front: 0.05 }
+  }[klass] || { pl: 1.0, drop: 0.7, taper: 0.36, front: 0.12 };
+
+  const hw = bw / 2, hh = bh / 2;
+  const lean = sl * hh;                       // x-shear across the body height
+  // anterior body corners (right side) — front is slightly rounded/wedged
+  const aTopX = cx + hw - bw * cfg.front, aTopY = cy - hh;
+  const aBotX = cx + hw - bw * cfg.front, aBotY = cy + hh;
+  const aRoundT = cx + hw, aMidY = cy;        // bulging front
+  // posterior body edge (left of body, where pedicle begins)
+  const pTopX = cx - hw * 0.36, pTopY = cy - hh * 0.92;
+  const pBotX = cx - hw * 0.36, pBotY = cy + hh * 0.92;
+  // spinous process tip: posterior + down
+  const procLen = bw * cfg.pl;
+  const tipX = cx - hw * 0.36 - procLen;
+  const tipY = cy + hh * cfg.drop;
+  const procTaper = bh * cfg.taper;
+
+  // path: top of body → rounded anterior front → bottom of body → into the
+  // lower edge of the spinous process → tip → upper edge of process → close
+  return (
+    `M ${f(aTopX + lean)} ${f(aTopY)} ` +
+    `Q ${f(aRoundT + lean*0.5)} ${f(aMidY - hh*0.55)} ${f(aRoundT + lean*0.3)} ${f(aMidY)} ` +
+    `Q ${f(aRoundT + lean*0.5)} ${f(aMidY + hh*0.55)} ${f(aBotX - lean)} ${f(aBotY)} ` +
+    `L ${f(pBotX - lean)} ${f(pBotY)} ` +
+    `L ${f(tipX)} ${f(tipY + procTaper*0.5)} ` +
+    `Q ${f(tipX - bw*0.06)} ${f(tipY)} ${f(tipX + bw*0.04)} ${f(tipY - procTaper*0.5)} ` +
+    `L ${f(pTopX + lean)} ${f(pTopY)} Z`
+  );
+}
+const f = (n) => Math.round(n * 100) / 100;
+
+function buildSpine() {
+  const svg = document.getElementById("spine");
+  svg.innerHTML = "";
+  const centers = [];
+  const groups = [];
+  let y = 46;
+
+  REGIONS.forEach((r) => {
+    const g = E("g", { class: "region", "data-stage": r.stage, tabindex: "0", role: "button",
+                        "aria-label": STAGES[r.stage].name });
+    const yStart = y;
+
+    if (r.sacrum) {
+      // a heavy wedge-shaped fused plate, tapering down toward the coccyx
+      const h = 55, topW = 44, botW = 15;          // 30% up, then 15% back down
+      const tilt = 7;                              // top angled: front (left) lower than back (right)
+      const cxT = CX + ox(y) + SACRUM_DX, cxB = CX + ox(y + h) + SACRUM_DX;
+      const yTL = y + tilt, yTR = y - tilt * 0.4;  // top-left dropped, top-right raised
+      // anterior (right) edge swept, posterior (left) edge canted — a wedge
+      const p =
+        `M ${f(cxT - topW*0.42)} ${f(yTL)} ` +
+        `L ${f(cxT + topW*0.58)} ${f(yTR)} ` +
+        `Q ${f(cxT + topW*0.30)} ${f(y + h*0.55)} ${f(cxB + botW*0.5)} ${f(y + h)} ` +
+        `L ${f(cxB - botW*0.5)} ${f(y + h)} ` +
+        `Q ${f(cxT - topW*0.30)} ${f(y + h*0.5)} ${f(cxT - topW*0.42)} ${f(yTL)} Z`;
+      g.appendChild(E("path", { class: "v-sacrum", d: p }));
+      // fused segment lines
+      for (let i = 1; i <= 3; i++) {
+        const yy = y + h * (i / 4), w = topW*0.5 - (topW - botW)*0.5 * (i/4) - 5;
+        g.appendChild(E("line", { class: "v-seg", x1: CX + ox(yy) + SACRUM_DX - w*0.9, y1: yy, x2: CX + ox(yy) + SACRUM_DX + w, y2: yy }));
+      }
+      centers.push([cxT, y + 4], [cxB, y + h - 4]);
+      y += h;
+    } else if (r.klass === "coccyx") {
+      // a small hooked tail curling forward (toward the anterior/right)
+      let cx0 = CX + ox(y), cy0 = y;
+      for (let i = 0; i < r.count; i++) {
+        const scale = 1 - i * 0.20;
+        const bh = r.bh * scale, bw = r.bw * scale;
+        const hook = i * 4.5;                         // progressive forward curl
+        const vy = y + bh / 2;
+        const vx = CX + ox(vy) + hook + SACRUM_DX;
+        centers.push([vx, vy]);
+        // small rounded blocky segment, last ones hooking right
+        const hw = bw/2, hh = bh/2;
+        const p =
+          `M ${f(vx - hw*0.7)} ${f(vy - hh)} ` +
+          `Q ${f(vx + hw)} ${f(vy - hh*0.5)} ${f(vx + hw*0.9 + hook*0.3)} ${f(vy)} ` +
+          `Q ${f(vx + hw)} ${f(vy + hh*0.6)} ${f(vx - hw*0.7)} ${f(vy + hh)} ` +
+          `Q ${f(vx - hw)} ${f(vy)} ${f(vx - hw*0.7)} ${f(vy - hh)} Z`;
+        g.appendChild(E("path", { class: "v-body", d: p }));
+        y += bh + r.gap;
+      }
+    } else {
+      for (let i = 0; i < r.count; i++) {
+        // bodies swell as the run descends (toward heavier lumbar)
+        const grow = 1 + (i / Math.max(1, r.count - 1)) * 0.14;
+        const bh = r.bh * grow, bw = r.bw * grow;
+        const vy = y + bh / 2;
+        const vx = CX + ox(vy);
+        const sl = slope(vy);
+        centers.push([vx, vy]);
+        g.appendChild(E("path", { class: "v-body", d: vertebra(vx, vy, sl, bw, bh, r.klass) }));
+        // ribs: short flat tapered slivers sweeping off the thoracic bodies
+        if (r.ribs) {
+          const rx = vx + bw*0.42, ry = vy - bh*0.1;
+          g.appendChild(E("path", { class: "v-rib", d:
+            `M ${f(rx)} ${f(ry)} Q ${f(rx + 16)} ${f(ry + 4)} ${f(rx + 26)} ${f(ry + 15)} ` +
+            `L ${f(rx + 23)} ${f(ry + 17)} Q ${f(rx + 13)} ${f(ry + 6)} ${f(rx)} ${f(ry + 2.4)} Z` }));
+        }
+        y += bh + r.gap;
+      }
+    }
+
+    const yEnd = y;
+    const mid = (yStart + yEnd) / 2;
+
+    // stage numeral + name on the left margin
+    const num = E("text", { class: "v-num", x: 26, y: mid - 1 }); num.textContent = r.stage.toString().padStart(2, "0");
+    const nm  = E("text", { class: "v-name", x: 26, y: mid + 12 }); nm.textContent = r.key;
+    g.appendChild(num); g.appendChild(nm);
+
+    // count badge on the right, only when the stage holds items
+    const n = STAGES[r.stage].items.length;
+    if (n > 0) {
+      g.appendChild(E("circle", { class: "badge-ring", cx: 304, cy: mid, r: 9.5 }));
+      const bn = E("text", { class: "badge-num", x: 304, y: mid + 3.2, "text-anchor": "middle" }); bn.textContent = n;
+      g.appendChild(bn);
+    }
+
+    groups.push(g);
+    y += 7; // wider inter-run disc gap marks the stage boundary
+  });
+
+  // the spinal cord: a faint thread woven through every body center, drawn behind
+  let d = "M " + f(centers[0][0]) + " " + f(centers[0][1]);
+  for (let i = 1; i < centers.length; i++) {
+    const [x1, y1] = centers[i - 1], [x2, y2] = centers[i];
+    const my = (y1 + y2) / 2;
+    d += ` C ${f(x1)} ${f(my)}, ${f(x2)} ${f(my)}, ${f(x2)} ${f(y2)}`;
+  }
+  svg.appendChild(E("path", { class: "cord-path", d }));
+
+  // vertebrae on top, staggered to rise from the earth upward
+  const total = groups.length;
+  groups.forEach((g, i) => {
+    g.style.animationDelay = ((total - 1 - i) * 90) + "ms";
+    const stage = +g.getAttribute("data-stage");
+    g.addEventListener("click", () => select(stage));
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(stage); } });
+    svg.appendChild(g);
+  });
+}
+
+/* ─────────────────────  THE DETAIL PANEL  ───────────────────── */
+
+let current = null;
+
+function chip(status) {
+  const hot = HOT_STATUS.has(status) ? " hot" : "";
+  return `<span class="chip${hot}">${status}</span>`;
+}
+
+function renderDetail(stage) {
+  const s = STAGES[stage];
+  const items = s.items;
+
+  const cards = items.length
+    ? `<div class="cards">` + items.map((it, i) =>
+        `<article class="card" style="--i:${i}">
+           <div class="card-top"><h4>${it.title}</h4>${chip(it.status)}</div>
+           <p>${it.desc}</p>
+         </article>`).join("") + `</div>`
+    : `<div class="empty">No items have settled in this stage yet.
+         <span class="mono">awaiting propagation along the cord</span></div>`;
+
+  const statusLine = `<div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--faint);margin-top:14px">
+      status vocabulary &nbsp;·&nbsp; ${s.statuses.join("  ·  ")}</div>`;
+
+  const detail = document.getElementById("detail");
+  detail.classList.remove("swap"); void detail.offsetWidth; detail.classList.add("swap");
+  detail.innerHTML = `
+    <header class="stage-head">
+      <span class="stage-num">${s.num}</span>
+      <div><h2>${s.name}</h2><span class="anat">${s.anat}</span></div>
+    </header>
+    <p class="role">${s.role}</p>
+    ${statusLine}
+    <hr class="rule" style="margin-top:30px" />
+    <div class="flux">
+      <div class="flux-row"><span class="dir">↑ Ascends &nbsp;${s.ascend.mode}</span><p>${s.ascend.text}</p></div>
+      <div class="flux-row"><span class="dir down">↓ Descends &nbsp;${s.descend.mode}</span><p>${s.descend.text}</p></div>
+    </div>
+    <div class="items-head">
+      <span class="label">In this stage</span>
+      <span class="count">${items.length}</span>
+      <span class="bar"></span>
+    </div>
+    ${cards}
+  `;
+}
+
+function select(stage) {
+  if (stage === current) return;
+  current = stage;
+  document.querySelectorAll(".region").forEach((g) =>
+    g.classList.toggle("is-selected", +g.getAttribute("data-stage") === stage));
+  renderDetail(stage);
+}
+
+/* ─────────────────────  BOOT  ───────────────────── */
+buildSpine();
+select(0); // matter enters at the base
+</script>
+</body>
+</html>
