@@ -1,5 +1,11 @@
 # spinal_scaffold
 
+A conceptual development paradigm loosely inspired by *Spinal Catastrophism* by Thomas Moynihan.
+Built for use with, and with the aid of, Claude Code.
+
+Ascension up the spine acts as an idea's ontogenesis. Starting at the coccyx, the development cycle takes a nascent idea, orients it away from the ground, and forces it into a state of self-recognition and ultimately self-governance. The project acts as a spine to orient and structure the development of a program, but it is the program, not the bones, that is capable of procedural unfolding and infolding.
+
+
 A project planned and governed with the **Spinal Development** paradigm.
 
 The paradigm lives in [`spine/`](./spine/) — a self-contained column that models project
